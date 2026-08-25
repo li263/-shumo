@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学建模竞赛工作台</title>
+    <!-- Tailwind CSS - 使用 BootCDN 国内镜像 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.4.1/tailwindcss.min.js"></script>
+    <!-- Chart.js - 国内镜像 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <!-- MathJax - 国内镜像，异步加载不阻塞 -->
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' },
+            startup: { typeset: false }
+        };
+    </script>
+    <script async src="https://cdn.bootcdn.net/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#64748b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 自定义滚动条 */
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+        /* 预加载背景，避免白屏 */
+        body { opacity: 0; transition: opacity 0.3s; }
+        body.loaded { opacity: 1; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100">
+    <div class="flex h-screen overflow-hidden">
+        <!-- 左侧操作面板 -->
+        <div class="w-[40%] border-r border-gray-200 dark:border-gray-700 flex flex-col">
+            <!-- 顶部标题栏 -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h1 class="text-xl font-bold text-primary">数学建模竞赛工作台</h1>
+                <button id="themeToggle" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors" title="切换主题">
+                    <svg id="lightIcon" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <svg id="darkIcon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-5">
+                <!-- 题目录入区 -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">问题题目</label>
+                    <textarea id="problemTitle" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none resize-none" placeholder="请输入数学建模问题描述..."></textarea>
+                </div>
+
+                <!-- 模型选择 -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">选择模型</label>
+                    <select id="modelSelect" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none">
+                        <option value="gray">灰色预测 GM(1,1)</option>
+                        <option value="regression">多元线性回归</option>
+                        <option value="ahp">层次分析法 AHP</option>
+                        <option value="topsis">TOPSIS 优劣解距离法</option>
+                        <option value="bp">BP 神经网络</option>
+                        <option value="ga">遗传算法</option>
+                    </select>
+                </div>
+
+                <!-- 参数输入区 -->
+                <div id="paramPanel" class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">模型参数</label>
+                    <div id="paramInputs" class="grid grid-cols-2 gap-2">
+                        <!-- 动态生成参数输入框 -->
+                    </div>
+                </div>
+
+                <!-- 数据输入区 -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">数据表格</label>
+                        <div class="flex gap-2">
+                            <button id="addRowBtn" class="px-2 py-1 text-xs bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors">+ 添加行</button>
+                            <button id="delRowBtn" class="px-2 py-1 text-xs bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors">- 删除行</button>
+                        </div>
+                    </div>
+                    
+                    <!-- CSV导入 -->
+                    <div class="flex gap-2">
+                        <textarea id="csvInput" rows="2" class="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="粘贴CSV数据，逗号分隔，换行分行"></textarea>
+                        <button id="importCsvBtn" class="px-3 py-1 text-xs bg-secondary/10 text-secondary rounded hover:bg-secondary/20 transition-colors whitespace-nowrap">导入CSV</button>
+                    </div>
+
+                    <!-- 可编辑表格 -->
+                    <div class="overflow-x-auto border border-gray-300 dark:border-gray-600 rounded-lg">
+                        <table id="dataTable" class="w-full text-sm">
+                            <thead class="bg-gray-100 dark:bg-gray-800">
+                                <tr id="tableHeader">
+                                    <th class="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 w-10">序号</th>
+                                    <th class="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600" contenteditable="true">X1</th>
+                                    <th class="px-2 py-1.5" contenteditable="true">Y</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="divide-y divide-gray-200 dark:divide-gray-700">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <td class="px-2 py-1.5 text-center text-gray-500 border-r border-gray-300 dark:border-gray-600">1</td>
+                                    <td class="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600" contenteditable="true">1</td>
+                                    <td class="px-2 py-1.5" contenteditable="true">2.1</td>
+                                </tr>
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <td class="px-2 py-1.5 text-center text-gray-500 border-r border-gray-300 dark:border-gray-600">2</td>
+                                    <td class="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600" contenteditable="true">2</td>
+                                    <td class="px-2 py-1.5" contenteditable="true">3.9</td>
+                                </tr>
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <td class="px-2 py-1.5 text-center text-gray-500 border-r border-gray-300 dark:border-gray-600">3</td>
+                                    <td class="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600" contenteditable="true">3</td>
+                                    <td class="px-2 py-1.5" contenteditable="true">6.2</td>
+                                </tr>
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                                    <td class="px-2 py-1.5 text-center text-gray-500 border-r border-gray-300 dark:border-gray-600">4</td>
+                                    <td class="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600" contenteditable="true">4</td>
+                                    <td class="px-2 py-1.5" contenteditable="true">7.8</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 计算按钮 -->
+                <button id="calculateBtn" class="w-full py-2.5 bg-primary hover:bg-primary/90 text-white font-medium rounded-lg shadow-sm hover:shadow transition-all active:scale-[0.98]">
+                    运行计算
+                </button>
+            </div>
+        </div>
+
+        <!-- 右侧结果与图表区域 -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-5">
+                <!-- 公式展示区 -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 class="text-base font-semibold mb-2 text-gray-800 dark:text-gray-100">模型公式</h3>
+                    <div id="formulaArea" class="text-gray-700 dark:text-gray-300 min-h-[60px] flex items-center">
+                        请选择模型并运行计算
+                    </div>
+                </div>
+
+                <!-- 计算结果表格 -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 class="text-base font-semibold mb-2 text-gray-800 dark:text-gray-100">计算结果</h3>
+                    <div class="overflow-x-auto">
+                        <table id="resultTable" class="w-full text-sm border-collapse">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-3 py-2 border border-gray-200 dark:border-gray-600 text-left">指标</th>
+                                    <th class="px-3 py-2 border border-gray-200 dark:border-gray-600 text-left">数值</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultBody">
+                                <tr>
+                                    <td class="px-3 py-2 border border-gray-200 dark:border-gray-600 text-gray-500" colspan="2">等待计算...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 可视化图表 -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 class="text-base font-semibold mb-3 text-gray-800 dark:text-gray-100">可视化图表</h3>
+                    <div class="h-64 relative">
+                        <canvas id="resultChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 建模报告 -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-base font-semibold text-gray-800 dark:text-gray-100">建模报告 (Markdown)</h3>
+                        <button id="copyReportBtn" class="px-3 py-1 text-xs bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors">复制报告</button>
+                    </div>
+                    <textarea id="reportArea" rows="8" class="w-full px-3 py-2 text-xs font-mono border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 focus:ring-1 focus:ring-primary outline-none resize-none" readonly placeholder="计算后自动生成报告..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 页面加载完成后显示
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.classList.add('loaded');
+            initApp();
+        });
+
+        function initApp() {
+            // ===================== 全局变量 =====================
+            let currentChart = null;
+            const modelSelect = document.getElementById('modelSelect');
+            const paramInputs = document.getElementById('paramInputs');
+            const calculateBtn = document.getElementById('calculateBtn');
+            const themeToggle = document.getElementById('themeToggle');
+            const addRowBtn = document.getElementById('addRowBtn');
+            const delRowBtn = document.getElementById('delRowBtn');
+            const importCsvBtn = document.getElementById('importCsvBtn');
+            const csvInput = document.getElementById('csvInput');
+            const tableBody = document.getElementById('tableBody');
+            const tableHeader = document.getElementById('tableHeader');
+            const formulaArea = document.getElementById('formulaArea');
+            const resultBody = document.getElementById('resultBody');
+            const reportArea = document.getElementById('reportArea');
+            const copyReportBtn = document.getElementById('copyReportBtn');
+
+            // ===================== 主题切换 =====================
+            themeToggle.addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                updateChartTheme();
+            });
+
+            // ===================== 模型参数动态生成 =====================
+            const modelParams = {
+                gray: [{ label: '预测步数', key: 'predictStep', value: 3 }],
+                regression: [{ label: '多项式阶数', key: 'order', value: 1 }],
+                ahp: [{ label: '准则数量', key: 'criteriaNum', value: 4 }],
+                topsis: [{ label: '权重(逗号分隔)', key: 'weights', value: '0.3,0.3,0.2,0.2' }],
+                bp: [{ label: '隐藏层节点', key: 'hidden', value: 5 }, { label: '迭代次数', key: 'epochs', value: 1000 }],
+                ga: [{ label: '种群大小', key: 'popSize', value: 50 }, { label: '迭代次数', key: 'iter', value: 100 }]
+            };
+
+            function renderParams() {
+                const model = modelSelect.value;
+                const params = modelParams[model];
+                paramInputs.innerHTML = '';
+                params.forEach(p => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <label class="text-xs text-gray-600 dark:text-gray-400">${p.label}</label>
+                        <input type="text" data-key="${p.key}" value="${p.value}" 
+                            class="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 focus:ring-1 focus:ring-primary outline-none">
+                    `;
+                    paramInputs.appendChild(div);
+                });
+            }
+
+            modelSelect.addEventListener('change', renderParams);
+            renderParams();
+
+            // ===================== 表格操作 =====================
+            // 添加行
+            addRowBtn.addEventListener('click', () => {
+                const rowCount = tableBody.children.length;
+                const colCount = tableHeader.children.length - 1;
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-800/50';
+                
+                let tdHtml = `<td class="px-2 py-1.5 text-center text-gray-500 border-r border-gray-300 dark:border-gray-600">${rowCount + 1}</td>`;
+                for (let i = 0; i < colCount; i++) {
+                    tdHtml += `<td class="px-2 py-1.5 ${i < colCount - 1 ? 'border-r border-gray-300 dark:border-gray-600' : ''}" contenteditable="true">0</td>`;
+                }
+                tr.innerHTML = tdHtml;
+                tableBody.appendChild(tr);
+            });
+
+            // 删除行
+            delRowBtn.addEventListener('click', () => {
+                if (tableBody.children.length > 1) {
+                    tableBody.removeChild(tableBody.lastElementChild);
+                }
+            });
+
+            // CSV导入
+            importCsvBtn.addEventListener('click', () => {
+                const text = csvInput.value.trim();
+                if (!text) return;
+                
+                const lines = text.split('\n').filter(l => l.trim());
+                if (lines.length === 0) return;
+
+                // 处理表头
+                const headers = lines[0].split(/[,，\t]/).map(h => h.trim());
+                tableHeader.innerHTML = '<th class="px-2 py-1.5 border-r border-gray-300 dark:border-gray-600 w-10">序号</th>';
+                headers.forEach((h, i) => {
+                    const th = document.createElement('th');
+                    th.className = `px-2 py-1.5 ${i < headers.length - 1 ? 'border-r border-gray-300 dark:border-gray-600' : ''}`;
+                    th.contentEditable = 'true';
+                    th.textContent = h;
+                    tableHeader.appendChild(th);
+                });
+
+                // 处理数据行
+                tableBody.innerHTML = '';
+                lines.slice(1).forEach((line, idx) => {
+                    const values = line.split(/[,，\t]/).map(v => v.trim());
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-800/50';
+                    
+                    let tdHtml = `<td class="px-2 py-1.5 text-center text-gray-500 border-r border-gray-300 dark:border-gray-600">${idx + 1}</td>`;
+                    values.forEach((v, i) => {
+                        tdHtml += `<td class="px-2 py-1.5 ${i < values.length - 1 ? 'border-r border-gray-300 dark:border-gray-600' : ''}" contenteditable="true">${v}</td>`;
+                    });
+                    tr.innerHTML = tdHtml;
+                    tableBody.appendChild(tr);
+                });
+
+                csvInput.value = '';
+            });
+
+            // 读取表格数据
+            function getTableData() {
+                const rows = Array.from(tableBody.children);
+                const data = [];
+                rows.forEach(row => {
+                    const cells = Array.from(row.children).slice(1);
+                    const rowData = cells.map(cell => parseFloat(cell.textContent.trim()) || 0);
+                    data.push(rowData);
+                });
+                return data;
+            }
+
+            // ===================== 算法实现 =====================
+
+            // 1. 灰色预测 GM(1,1)
+            function grayPrediction(data, predictStep) {
+                const x0 = data.map(d => d[d.length - 1]);
+                const n = x0.length;
+                
+                const x1 = [];
+                let sum = 0;
+                x0.forEach(v => { sum += v; x1.push(sum); });
+                
+                const z = [];
+                for (let i = 1; i < n; i++) {
+                    z.push(0.5 * x1[i] + 0.5 * x1[i-1]);
+                }
+                
+                let sumZ = 0, sumX0 = 0, sumZX0 = 0, sumZ2 = 0;
+                for (let i = 0; i < z.length; i++) {
+                    sumZ += z[i];
+                    sumX0 += x0[i+1];
+                    sumZX0 += z[i] * x0[i+1];
+                    sumZ2 += z[i] * z[i];
+                }
+                const B = n - 1;
+                const a = (sumZ * sumX0 / B - sumZX0) / (sumZX0 - sumZ2 * sumZ / B);
+                const b = (sumX0 + a * sumZ) / B;
+                
+                const predict = [];
+                for (let k = 0; k < n + predictStep; k++) {
+                    const val = (x0[0] - b/a) * Math.exp(-a * k) + b/a;
+                    predict.push(val);
+                }
+                
+                const predict0 = [x0[0]];
+                for (let k = 1; k < predict.length; k++) {
+                    predict0.push(predict[k] - predict[k-1]);
+                }
+                
+                return {
+                    params: { a, b },
+                    original: x0,
+                    predicted: predict0,
+                    formula: '\\hat{x}^{(1)}(k+1) = \\left(x^{(1)}(0) - \\frac{b}{a}\\right)e^{-ak} + \\frac{b}{a}'
+                };
+            }
+
+            // 2. 多元线性回归
+            function linearRegression(data) {
+                const n = data.length;
+                const y = data.map(d => d[d.length - 1]);
+                const X = data.map(d => [1, ...d.slice(0, -1)]);
+                const k = X[0].length;
+                
+                const transpose = (m) => m[0].map((_, i) => m.map(row => row[i]));
+                
+                const multiply = (A, B) => {
+                    const result = [];
+                    for (let i = 0; i < A.length; i++) {
+                        result[i] = [];
+                        for (let j = 0; j < B[0].length; j++) {
+                            let sum = 0;
+                            for (let k = 0; k < A[0].length; k++) {
+                                sum += A[i][k] * B[k][j];
+                            }
+                            result[i][j] = sum;
+                        }
+                    }
+                    return result;
+                };
+                
+                const Xt = transpose(X);
+                const XtX = multiply(Xt, X);
+                const Xty = multiply(Xt, [y].map(row => row));
+                
+                // 梯度下降求解
+                let beta = Array(k).fill(0);
+                const lr = 0.01;
+                for (let iter = 0; iter < 5000; iter++) {
+                    const yPred = X.map(row => row.reduce((s, v, i) => s + v * beta[i], 0));
+                    const error = y.map((v, i) => v - yPred[i]);
+                    const gradient = Xt.map(row => row.reduce((s, v, i) => s + v * error[i], 0) * (-2/n));
+                    beta = beta.map((b, i) => b - lr * gradient[i]);
+                }
+                
+                const yFit = X.map(row => row.reduce((s, v, i) => s + v * beta[i], 0));
+                
+                const yMean = y.reduce((a, b) => a + b) / n;
+                const ssTotal = y.reduce((s, v) => s + (v - yMean)**2, 0);
+                const ssRes = y.reduce((s, v, i) => s + (v - yFit[i])**2, 0);
+                const r2 = 1 - ssRes / ssTotal;
+                
+                return {
+                    coefficients: beta,
+                    fitted: yFit,
+                    original: y,
+                    r2,
+                    formula: 'y = \\beta_0 + \\beta_1 x_1 + \\beta_2 x_2 + \\dots + \\beta_k x_k + \\varepsilon'
+                };
+            }
+
+            // 3. AHP 层次分析法
+            function ahpCalculate(data) {
+                const n = data.length;
+                const matrix = data;
+                
+                const colSum = matrix[0].map((_, j) => matrix.reduce((s, row) => s + row[j], 0));
+                const normMatrix = matrix.map(row => row.map((v, j) => v / colSum[j]));
+                
+                const weights = normMatrix.map(row => {
+                    const sum = row.reduce((a, b) => a + b, 0);
+                    return sum / n;
+                });
+                
+                const weightedSum = matrix.map((row, i) => 
+                    row.reduce((s, v, j) => s + v * weights[j], 0) / weights[i]
+                );
+                const lambdaMax = weightedSum.reduce((a, b) => a + b, 0) / n;
+                
+                const ci = (lambdaMax - n) / (n - 1);
+                const riTable = {1:0, 2:0, 3:0.58, 4:0.90, 5:1.12, 6:1.24, 7:1.32, 8:1.41, 9:1.45};
+                const ri = riTable[n] || 1.45;
+                const cr = ci / ri;
+                
+                return {
+                    weights,
+                    lambdaMax,
+                    ci,
+                    cr,
+                    consistent: cr < 0.1,
+                    formula: 'CR = \\frac{CI}{RI}, \\quad CI = \\frac{\\lambda_{max} - n}{n-1}'
+                };
+            }
+
+            // 4. TOPSIS
+            function topsisCalculate(data, weights) {
+                const n = data.length;
+                const m = data[0].length;
+                
+                const norm = Array(m).fill(0);
+                data.forEach(row => {
+                    row.forEach((v, j) => norm[j] += v * v);
+                });
+                for (let j = 0; j < m; j++) {
+                    norm[j] = Math.sqrt(norm[j]);
+                }
+                
+                const normData = data.map(row => row.map((v, j) => v / norm[j]));
+                const weightedData = normData.map(row => row.map((v, j) => v * weights[j]));
+                
+                const idealBest = weightedData[0].map((_, j) => Math.max(...weightedData.map(r => r[j])));
+                const idealWorst = weightedData[0].map((_, j) => Math.min(...weightedData.map(r => r[j])));
+                
+                const distBest = weightedData.map(row => 
+                    Math.sqrt(row.reduce((s, v, j) => s + (v - idealBest[j])**2, 0))
+                );
+                const distWorst = weightedData.map(row => 
+                    Math.sqrt(row.reduce((s, v, j) => s + (v - idealWorst[j])**2, 0))
+                );
+                
+                const score = distBest.map((d, i) => distWorst[i] / (d + distWorst[i]));
+                
+                const ranked = score.map((s, i) => ({ index: i+1, score: s }))
+                    .sort((a, b) => b.score - a.score);
+                
+                return {
+                    scores: score,
+                    ranking: ranked,
+                    formula: 'C_i = \\frac{D_i^-}{D_i^+ + D_i^-}'
+                };
+            }
+
+            // 5. BP神经网络
+            function bpNetwork(data, hiddenSize, epochs) {
+                const X = data.map(d => d.slice(0, -1));
+                const y = data.map(d => [d[d.length - 1]]);
+                const inputSize = X[0].length;
+                const lr = 0.1;
+                
+                let W1 = Array.from({length: inputSize}, () => 
+                    Array.from({length: hiddenSize}, () => Math.random() * 2 - 1)
+                );
+                let b1 = Array(hiddenSize).fill(0.1);
+                let W2 = Array.from({length: hiddenSize}, () => 
+                    Array.from({length: 1}, () => Math.random() * 2 - 1)
+                );
+                let b2 = Array(1).fill(0.1);
+                
+                const sigmoid = x => 1 / (1 + Math.exp(-x));
+                const sigmoidDeriv = x => x * (1 - x);
+                
+                const losses = [];
+                
+                for (let epoch = 0; epoch < epochs; epoch++) {
+                    let totalLoss = 0;
+                    
+                    for (let i = 0; i < X.length; i++) {
+                        const hidden = b1.map((b, j) => 
+                            sigmoid(X[i].reduce((s, x, k) => s + x * W1[k][j], 0) + b)
+                        );
+                        
+                        const output = b2.map((b, j) => 
+                            hidden.reduce((s, h, k) => s + h * W2[k][j], 0) + b
+                        );
+                        
+                        const error = output.map((o, j) => y[i][j] - o);
+                        totalLoss += error.reduce((s, e) => s + e*e, 0);
+                        
+                        const dOutput = error;
+                        const dHidden = hidden.map((h, j) => 
+                            dOutput.reduce((s, e, k) => s + e * W2[j][k], 0) * sigmoidDeriv(h)
+                        );
+                        
+                        for (let j = 0; j < hiddenSize; j++) {
+                            for (let k = 0; k < 1; k++) {
+                                W2[j][k] += lr * hidden[j] * dOutput[k];
+                            }
+                        }
+                        b2 = b2.map((b, j) => b + lr * dOutput[j]);
+                        
+                        for (let j = 0; j < inputSize; j++) {
+                            for (let k = 0; k < hiddenSize; k++) {
+                                W1[j][k] += lr * X[i][j] * dHidden[k];
+                            }
+                        }
+                        b1 = b1.map((b, j) => b + lr * dHidden[j]);
+                    }
+                    
+                    losses.push(totalLoss / X.length);
+                }
+                
+                const predictions = X.map(x => {
+                    const hidden = b1.map((b, j) => 
+                        sigmoid(x.reduce((s, xi, k) => s + xi * W1[k][j], 0) + b)
+                    );
+                    return b2.map((b, j) => hidden.reduce((s, h, k) => s + h * W2[k][j], 0) + b)[0];
+                });
+                
+                return {
+                    predictions,
+                    losses,
+                    original: y.map(v => v[0]),
+                    formula: '\\sigma(x) = \\frac{1}{1+e^{-x}}, \\quad \\hat{y} = W_2 \\sigma(W_1 x + b_1) + b_2'
+                };
+            }
+
+            // 6. 遗传算法
+            function geneticAlgorithm(popSize, iter) {
+                const fitness = x => x * Math.sin(10 * Math.PI * x) + 2.0;
+                
+                const encode = x => {
+                    const normalized = (x + 1) / 3;
+                    const intVal = Math.round(normalized * (Math.pow(2, 16) - 1));
+                    return intVal.toString(2).padStart(16, '0');
+                };
+                
+                const decode = chrom => {
+                    const intVal = parseInt(chrom, 2);
+                    const normalized = intVal / (Math.pow(2, 16) - 1);
+                    return normalized * 3 - 1;
+                };
+                
+                let population = Array.from({length: popSize}, () => 
+                    encode(Math.random() * 3 - 1)
+                );
+                
+                const bestHistory = [];
+                
+                for (let gen = 0; gen < iter; gen++) {
+                    const fits = population.map(chrom => fitness(decode(chrom)));
+                    const minFit = Math.min(...fits);
+                    const adjFits = fits.map(f => f - minFit + 0.001);
+                    const totalFit = adjFits.reduce((a, b) => a + b, 0);
+                    
+                    const bestIdx = fits.indexOf(Math.max(...fits));
+                    bestHistory.push(fits[bestIdx]);
+                    
+                    const newPop = [];
+                    for (let i = 0; i < popSize; i++) {
+                        let r = Math.random() * totalFit;
+                        let sum = 0;
+                        for (let j = 0; j < popSize; j++) {
+                            sum += adjFits[j];
+                            if (sum >= r) {
+                                newPop.push(population[j]);
+                                break;
+                            }
+                        }
+                    }
+                    population = newPop;
+                    
+                    for (let i = 0; i < popSize; i += 2) {
+                        if (Math.random() < 0.8 && i + 1 < popSize) {
+                            const point = Math.floor(Math.random() * 15) + 1;
+                            const c1 = population[i].slice(0, point) + population[i+1].slice(point);
+                            const c2 = population[i+1].slice(0, point) + population[i].slice(point);
+                            population[i] = c1;
+                            population[i+1] = c2;
+                        }
+                    }
+                    
+                    population = population.map(chrom => 
+                        chrom.split('').map(gene => 
+                            Math.random() < 0.01 ? (gene === '0' ? '1' : '0') : gene
+                        ).join('')
+                    );
+                }
+                
+                const finalFits = population.map(chrom => fitness(decode(chrom)));
+                const bestIdx = finalFits.indexOf(Math.max(...finalFits));
+                const bestX = decode(population[bestIdx]);
+                const bestFitness = finalFits[bestIdx];
+                
+                return {
+                    bestX,
+                    bestFitness,
+                    convergence: bestHistory,
+                    formula: '\\max f(x) = x \\sin(10\\pi x) + 2.0, \\quad x \\in [-1, 2]'
+                };
+            }
+
+            // ===================== 结果渲染 =====================
+            
+            function renderResult(model, result) {
+                // 公式渲染
+                formulaArea.innerHTML = '$$' + result.formula + '$$';
+                if (window.MathJax && MathJax.typesetPromise) {
+                    MathJax.typesetPromise([formulaArea]).catch(() => {});
+                }
+                
+                // 结果表格
+                resultBody.innerHTML = '';
+                
+                if (model === 'gray') {
+                    addResultRow('发展系数 a', result.params.a.toFixed(6));
+                    addResultRow('灰作用量 b', result.params.b.toFixed(6));
+                    addResultRow('原始序列长度', result.original.length);
+                    addResultRow('预测步数', result.predicted.length - result.original.length);
+                } else if (model === 'regression') {
+                    result.coefficients.forEach((b, i) => {
+                        addResultRow(`系数 β${i}`, b.toFixed(6));
+                    });
+                    addResultRow('决定系数 R²', result.r2.toFixed(6));
+                } else if (model === 'ahp') {
+                    result.weights.forEach((w, i) => {
+                        addResultRow(`准则 ${i+1} 权重`, w.toFixed(6));
+                    });
+                    addResultRow('最大特征值 λmax', result.lambdaMax.toFixed(6));
+                    addResultRow('一致性指标 CI', result.ci.toFixed(6));
+                    addResultRow('一致性比例 CR', result.cr.toFixed(6));
+                    addResultRow('一致性检验', result.consistent ? '通过 (CR<0.1)' : '未通过');
+                } else if (model === 'topsis') {
+                    result.scores.forEach((s, i) => {
+                        addResultRow(`方案 ${i+1} 得分`, s.toFixed(6));
+                    });
+                    addResultRow('最优方案', `方案 ${result.ranking[0].index}`);
+                } else if (model === 'bp') {
+                    addResultRow('隐藏层节点数', hiddenSize || 5);
+                    addResultRow('迭代次数', epochs || 1000);
+                    addResultRow('最终损失', result.losses[result.losses.length - 1].toFixed(6));
+                } else if (model === 'ga') {
+                    addResultRow('最优解 x', result.bestX.toFixed(6));
+                    addResultRow('最优适应度', result.bestFitness.toFixed(6));
+                    addResultRow('迭代次数', result.convergence.length);
+                }
+            }
+
+            function addResultRow(label, value) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-3 py-2 border border-gray-200 dark:border-gray-600">${label}</td>
+                    <td class="px-3 py-2 border border-gray-200 dark:border-gray-600 font-mono">${value}</td>
+                `;
+                resultBody.appendChild(tr);
+            }
+
+            // ===================== 图表渲染 =====================
+            
+            function renderChart(model, result) {
+                if (currentChart) {
+                    currentChart.destroy();
+                }
+                
+                const ctx = document.getElementById('resultChart').getContext('2d');
+                const isDark = document.documentElement.classList.contains('dark');
+                const textColor = isDark ? '#cbd5e1' : '#374151';
+                const gridColor = isDark ? '#374151' : '#e5e7eb';
+                
+                let config = {
+                    type: 'line',
+                    data: {},
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: textColor } }
+                        },
+                        scales: {
+                            x: { ticks: { color: textColor }, grid: { color: gridColor } },
+                            y: { ticks: { color: textColor }, grid: { color: gridColor } }
+                        }
+                    }
+                };
+                
+                if (model === 'gray') {
+                    const labels = Array.from({length: result.predicted.length}, (_, i) => i + 1);
+                    const originalData = [...result.original];
+                    while (originalData.length < result.predicted.length) {
+                        originalData.push(null);
+                    }
+                    config.data = {
+                        labels,
+                        datasets: [
+                            {
+                                label: '原始数据',
+                                data: originalData,
+                                borderColor: '#2563eb',
+                                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                tension: 0.2,
+                                pointRadius: 4
+                            },
+                            {
+                                label: '预测值',
+                                data: result.predicted,
+                                borderColor: '#f59e0b',
+                                borderDash: [5, 5],
+                                tension: 0.2,
+                                pointRadius: 3
+                            }
+                        ]
+                    };
+                } else if (model === 'regression') {
+                    const labels = Array.from({length: result.original.length}, (_, i) => i + 1);
+                    config.data = {
+                        labels,
+                        datasets: [
+                            {
+                                label: '实际值',
+                                data: result.original,
+                                borderColor: '#2563eb',
+                                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                                tension: 0.2,
+                                pointRadius: 4
+                            },
+                            {
+                                label: '拟合值',
+                                data: result.fitted,
+                                borderColor: '#10b981',
+                                tension: 0.2,
+                                pointRadius: 3
+                            }
+                        ]
+                    };
+                } else if (model === 'ahp') {
+                    config.type = 'bar';
+                    config.data = {
+                        labels: result.weights.map((_, i) => `准则${i+1}`),
+                        datasets: [{
+                            label: '权重值',
+                            data: result.weights,
+                            backgroundColor: 'rgba(37, 99, 235, 0.7)',
+                            borderRadius: 4
+                        }]
+                    };
+                } else if (model === 'topsis') {
+                    config.type = 'bar';
+                    config.data = {
+                        labels: result.scores.map((_, i) => `方案${i+1}`),
+                        datasets: [{
+                            label: '贴近度得分',
+                            data: result.scores,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderRadius: 4
+                        }]
+                    };
+                } else if (model === 'bp') {
+                    config.data = {
+                        labels: Array.from({length: result.losses.length}, (_, i) => i + 1),
+                        datasets: [{
+                            label: '损失函数值',
+                            data: result.losses,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.3,
+                            pointRadius: 0
+                        }]
+                    };
+                } else if (model === 'ga') {
+                    config.data = {
+                        labels: Array.from({length: result.convergence.length}, (_, i) => i + 1),
+                        datasets: [{
+                            label: '最优适应度',
+                            data: result.convergence,
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            tension: 0.3,
+                            pointRadius: 0
+                        }]
+                    };
+                }
+                
+                currentChart = new Chart(ctx, config);
+            }
+
+            function updateChartTheme() {
+                if (!currentChart) return;
+                const isDark = document.documentElement.classList.contains('dark');
+                const textColor = isDark ? '#cbd5e1' : '#374151';
+                const gridColor = isDark ? '#374151' : '#e5e7eb';
+                
+                currentChart.options.plugins.legend.labels.color = textColor;
+                currentChart.options.scales.x.ticks.color = textColor;
+                currentChart.options.scales.y.ticks.color = textColor;
+                currentChart.options.scales.x.grid.color = gridColor;
+                currentChart.options.scales.y.grid.color = gridColor;
+                currentChart.update();
+            }
+
+            // ===================== 生成报告 =====================
+            
+            function generateReport(model, result, problem) {
+                const modelNames = {
+                    gray: '灰色预测 GM(1,1) 模型',
+                    regression: '多元线性回归模型',
+                    ahp: '层次分析法 AHP 模型',
+                    topsis: 'TOPSIS 优劣解距离模型',
+                    bp: 'BP 神经网络模型',
+                    ga: '遗传算法模型'
+                };
+                
+                let report = `# 数学建模报告\n\n## 一、问题描述\n${problem || '未输入问题描述'}\n\n## 二、模型选择\n采用 **${modelNames[model]}** 进行求解。\n\n## 三、模型假设\n1. 数据真实可靠，无异常值干扰\n2. 模型适用条件满足，系统变化符合模型基本假设\n3. 计算过程中数值误差在可接受范围内\n\n## 四、模型公式\n$$\n${result.formula}\n$$\n\n## 五、计算结果\n\n`;
+                
+                if (model === 'gray') {
+                    report += `- 发展系数 a = ${result.params.a.toFixed(6)}\n`;
+                    report += `- 灰作用量 b = ${result.params.b.toFixed(6)}\n`;
+                    report += `- 预测结果：${result.predicted.map(v => v.toFixed(3)).join(', ')}\n`;
+                } else if (model === 'regression') {
+                    report += `- 回归系数：${result.coefficients.map(v => v.toFixed(6)).join(', ')}\n`;
+                    report += `- 决定系数 R² = ${result.r2.toFixed(6)}\n`;
+                } else if (model === 'ahp') {
+                    report += `- 各准则权重：${result.weights.map(v => v.toFixed(6)).join(', ')}\n`;
+                    report += `- 一致性比例 CR = ${result.cr.toFixed(6)} ${result.consistent ? '(通过检验)' : '(未通过检验)'}\n`;
+                } else if (model === 'topsis') {
+                    report += `- 各方案得分：${result.scores.map(v => v.toFixed(6)).join(', ')}\n`;
+                    report += `- 最优方案：方案 ${result.ranking[0].index}\n`;
+                } else if (model === 'bp') {
+                    report += `- 网络结构：输入层-${result.original.length} 隐藏层-5 输出层-1\n`;
+                    report += `- 最终损失：${result.losses[result.losses.length - 1].toFixed(6)}\n`;
+                } else if (model === 'ga') {
+                    report += `- 最优解 x = ${result.bestX.toFixed(6)}\n`;
+                    report += `- 最优适应度 = ${result.bestFitness.toFixed(6)}\n`;
+                }
+                
+                report += `\n## 六、结果分析\n根据模型计算结果，可得出相应决策建议。模型计算结果与实际情况基本吻合，具有一定参考价值。\n\n## 七、模型评价\n### 优点\n1. 模型原理清晰，计算简便\n2. 对数据量要求较低，适用性广\n3. 结果直观，易于解释\n\n### 缺点\n1. 模型假设较强，适用范围有限\n2. 未考虑更多影响因素，可能存在偏差\n`;
+                
+                reportArea.value = report;
+            }
+
+            // ===================== 计算主逻辑 =====================
+            
+            calculateBtn.addEventListener('click', () => {
+                const model = modelSelect.value;
+                const data = getTableData();
+                const problem = document.getElementById('problemTitle').value;
+                
+                if (data.length === 0) {
+                    alert('请输入数据');
+                    return;
+                }
+                
+                let result;
+                
+                const paramInputEls = document.querySelectorAll('#paramInputs input');
+                const params = {};
+                paramInputEls.forEach(input => {
+                    params[input.dataset.key] = input.value;
+                });
+                
+                try {
+                    switch (model) {
+                        case 'gray':
+                            result = grayPrediction(data, parseInt(params.predictStep) || 3);
+                            break;
+                        case 'regression':
+                            result = linearRegression(data);
+                            break;
+                        case 'ahp':
+                            result = ahpCalculate(data);
+                            break;
+                        case 'topsis':
+                            const weights = params.weights.split(',').map(v => parseFloat(v.trim()));
+                            result = topsisCalculate(data, weights);
+                            break;
+                        case 'bp':
+                            result = bpNetwork(data, parseInt(params.hidden) || 5, parseInt(params.epochs) || 1000);
+                            break;
+                        case 'ga':
+                            result = geneticAlgorithm(parseInt(params.popSize) || 50, parseInt(params.iter) || 100);
+                            break;
+                    }
+                    
+                    renderResult(model, result);
+                    renderChart(model, result);
+                    generateReport(model, result, problem);
+                    
+                } catch (e) {
+                    alert('计算出错：' + e.message);
+                    console.error(e);
+                }
+            });
+
+            // ===================== 复制报告 =====================
+            copyReportBtn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(reportArea.value);
+                    copyReportBtn.textContent = '已复制';
+                    setTimeout(() => {
+                        copyReportBtn.textContent = '复制报告';
+                    }, 1500);
+                } catch (e) {
+                    // 降级方案
+                    reportArea.select();
+                    document.execCommand('copy');
+                    copyReportBtn.textContent = '已复制';
+                    setTimeout(() => {
+                        copyReportBtn.textContent = '复制报告';
+                    }, 1500);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
